@@ -12,13 +12,15 @@ import json
 import numpy as np
 import copy
 from tqdm import tqdm
+from tqdm.auto import tqdm
+import matplotlib.pyplot as plt
 
 class Trainer(object):
 
 	def __init__(self, 
 				 model = None,
 				 data_loader = None,
-				 train_times = 1000,
+				 train_times = 30,
 				 alpha = 0.5,
 				 use_gpu = True,
 				 opt_method = "sgd",
@@ -86,18 +88,51 @@ class Trainer(object):
 			)
 		print("Finish initializing...")
 		
-		training_range = tqdm(range(self.train_times))
+		training_range = tqdm(range(self.train_times), desc="Epoch Progress")
+		epoch_losses = []
 		for epoch in training_range:
 			res = 0.0
-			for data in self.data_loader:
+			batch_loss_data = []
+			batch_range = tqdm(self.data_loader, desc="Batch Progress", leave=False)
+			# for data in self.data_loader:
+			# 	loss = self.train_one_step(data)
+			# 	res += loss
+			# training_range.set_description("Epoch %d | loss: %f" % (epoch, res))
+			for data in batch_range:
 				loss = self.train_one_step(data)
 				res += loss
-			training_range.set_description("Epoch %d | loss: %f" % (epoch, res))
+				batch_loss_data.append(loss)
+				batch_range.set_postfix(loss=loss)
 			
+			avg_epoch_loss = res / len(self.data_loader)
+			epoch_losses.append(avg_epoch_loss)
+			training_range.set_description(f"Epoch {epoch} | Average loss: {avg_epoch_loss:.4f}")
+			self.plot_loss_trend(batch_loss_data, epoch)
+
+
 			if self.save_steps and self.checkpoint_dir and (epoch + 1) % self.save_steps == 0:
 				print("Epoch %d has finished, saving..." % (epoch))
 				self.model.save_checkpoint(os.path.join(self.checkpoint_dir + "-" + str(epoch) + ".ckpt"))
 
+		self.plot_epoch_losses(epoch_losses)
+	
+	def plot_epoch_losses(self, losses):
+		plt.figure()
+		plt.plot(losses, marker='o', linestyle='-')
+		plt.title('Average Loss Per Epoch')
+		plt.xlabel('Epoch')
+		plt.ylabel('Average Loss')
+		plt.grid(True)
+		plt.show()
+	
+	def plot_loss_trend(self, losses, epoch):
+		plt.figure()
+		plt.plot(losses)
+		plt.title(f'Loss Trend for Epoch {epoch}')
+		plt.xlabel('Batch Number')
+		plt.ylabel('Loss')
+		plt.show()
+	
 	def set_model(self, model):
 		self.model = model
 
